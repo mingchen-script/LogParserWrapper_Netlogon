@@ -8,7 +8,7 @@
 	#		4. No need to delete Netlogon.* since OS will still log esseitanl netlogon info.
 	#		5. More info https://docs.microsoft.com/en-us/troubleshoot/windows-client/windows-security/enable-debug-logging-netlogon-service
 	#
-	# LogParserWrapper_Netlogon.ps1 v0.6 11/2
+	# LogParserWrapper_Netlogon.ps1 v0.8 11/14 (added Chart)
 	# 	Steps:
 	#   	1. Install LogParser 2.2 from https://www.microsoft.com/en-us/download/details.aspx?id=24659
 	#    			Note: More about LogParser2.2 https://docs.microsoft.com/en-us/previous-versions/windows/it-pro/windows-xp/bb878032(v=technet.10)?redirectedfrom=MSDN
@@ -17,30 +17,42 @@
 	#					Note2: Afterward, LogParser will process *.log(s) in script directory in (3).
 	#   	3. Run script
 	# 
-function CommonWorkBookTasks($In) { # [WorkBook,Column,Name] Set filter, split panel, lock on row 1, auto column width. Set # column format >> save and delete CSV
-		$iSheet = $Excel.Workbooks[$In[0]].Worksheets[1]
-			$iSheet.Range("A1").AutoFilter() | Out-Null
+function Invoke-WorkbookTasks { [CmdletBinding()] param ( 
+		$WorkBook = 1, $TotalColumn = 4, $SheetTitle = $null, $LogsInfoText = $null
+	)
+	$iSheet = $Excel.Workbooks[$WorkBook].Worksheets[1]
+		$iSheet.Columns.Item($TotalColumn).numberformat = "###,###,###,###,###"
+		$iSheet.Name = ($SheetTitle)
 			$iSheet.Application.ActiveWindow.SplitRow=1  
-			$iSheet.Columns.AutoFit() | Out-Null
+			$null = $iSheet.Range("A1").AutoFilter() 
 			$iSheet.Application.ActiveWindow.FreezePanes = $true
-			$iSheet.Columns.Item($In[1]).numberformat = "###,###,###,###,###"
-			$iSheet.Name = ($In[2])
-			$iSheet.Cells.Item(1,5)=$In[3]
-		$Excel.Workbooks[$In[0]].SaveAs($ScriptPath+'\'+$TimeStamp+'_'+$In[2],51)
-		$iCSV = $ScriptPath+'\'+$TimeStamp+'_'+$In[2]+'.csv'
+			$null = $iSheet.Columns.AutoFit() 
+		$iSheet.Cells.Item(1,$TotalColumn+1)= "[NOTE]" #--Add log info
+			$null = $iSheet.Cells.Item(1,$TotalColumn+1).addcomment()      
+			$null = $iSheet.Cells.Item(1,$TotalColumn+1).comment.text($LogsInfoText)
+			$iSheet.Cells.Item(1,$TotalColumn+1).comment.shape.textframe.Autosize = $true
+		$iChart = $iSheet.shapes.addChart().chart #--Add Chart
+			$iChart.chartType = 5
+			$iChart.SizeWithWindow = $iChart.HasTitle = $true  
+			$iChart.ChartTitle.text = $SheetTitle
+			$iChart.ChartArea.Top = $iSheet.Cells.Item(2,$TotalColumn+1).Top
+			$iChart.ChartArea.Left = $iSheet.Cells.Item(2,$TotalColumn+1).Left
+			$iChart.ChartArea.Width = $iChart.ChartArea.Height = 300
+	$Excel.Workbooks[$WorkBook].SaveAs($ScriptPath+'\'+$TimeStamp+'-'+$SheetTitle,51)
+		$iCSV = $ScriptPath+'\'+$TimeStamp+'-'+$SheetTitle+'.csv'
 		Remove-Item $iCSV
 }
 #------Main---------------------------------
 	$ScriptPath = Split-Path ((Get-Variable MyInvocation -Scope 0).Value).MyCommand.Path
-	Get-ChildItem -Path $ScriptDirectory -Filter '*.bak' | Rename-Item -NewName {$_.name -replace '\.bak$', "_bak.log"} -ErrorAction Stop | Out-Null
-		$InFiles = $ScriptPath+'\*.log'
+	$null = Get-ChildItem -Path $ScriptDirectory -Filter '*.bak' | Rename-Item -NewName {$_.name -replace '\.bak$', "_bak.log"} -ErrorAction Stop 
+		$InFiles = "$ScriptPath\*.log"
 		$InputFormat = New-Object -ComObject MSUtil.LogQuery.TextLineInputFormat
 		$TimeStamp = "{0:yyyy-MM-dd_hh-mm-ss_tt}" -f (Get-Date)
 		$LPQuery = New-Object -ComObject MSUtil.LogQuery
 		$OutputFormat = New-Object -ComObject MSUtil.LogQuery.CSVOutputFormat
 #--SamLogon-Machine_
-	$OutTitle1 = 'SamLogon-Machine'
-	$OutFile1 = $ScriptPath+'\'+$TimeStamp+'_'+$OutTitle1+'.csv'
+	$OutTitle1 = 'SAM-Logon-Machine'
+	$OutFile1 = "$ScriptPath\$TimeStamp-$OutTitle1.csv"
 	$Query = @"
 		SELECT 
 			CASE EXTRACT_SUFFIX(TEXT,0,'Returns ')
@@ -63,10 +75,10 @@ function CommonWorkBookTasks($In) { # [WorkBook,Column,Name] Set filter, split p
 			Status, User, MachineName ORDER BY Total DESC
 "@
 	Write-Progress -Activity "Generating $OutTitle1 report" -PercentComplete (30)
-	$LPQuery.ExecuteBatch($Query,$InputFormat,$OutputFormat)| Out-Null
+	$null = $LPQuery.ExecuteBatch($Query,$InputFormat,$OutputFormat)
 #--SamLogon-Domain_
-	$OutTitle2 = 'SamLogon-Domain'
-	$OutFile2 = $ScriptPath+'\'+$TimeStamp+'_'+$OutTitle2+'.csv'
+	$OutTitle2 = 'SAM-Logon-Domain'
+	$OutFile2 = "$ScriptPath\$TimeStamp-$OutTitle2.csv"
 	$Query = @"
 		SELECT
 			CASE EXTRACT_SUFFIX(TEXT,0,'Returns ')
@@ -88,10 +100,10 @@ function CommonWorkBookTasks($In) { # [WorkBook,Column,Name] Set filter, split p
 			Domain,Status ORDER BY Total DESC
 "@
 	Write-Progress -Activity "Generating $OutTitle2 report" -PercentComplete (60)
-	$LPQuery.ExecuteBatch($Query,$InputFormat,$OutputFormat)| Out-Null
+	$null = $LPQuery.ExecuteBatch($Query,$InputFormat,$OutputFormat)
 #--SamLogon-User_
-	$OutTitle3 = 'SamLogon-User'
-	$OutFile3 = $ScriptPath+'\'+$TimeStamp+'_'+$OutTitle3+'.csv'
+	$OutTitle3 = 'SAM-Logon-User'
+	$OutFile3 = "$ScriptPath\$TimeStamp-$OutTitle3.csv"
 	$Query = @"
 		SELECT 
 			CASE EXTRACT_SUFFIX(TEXT,0,'Returns ')
@@ -113,40 +125,41 @@ function CommonWorkBookTasks($In) { # [WorkBook,Column,Name] Set filter, split p
 			Status, User ORDER BY Total DESC
 "@
 	Write-Progress -Activity "Generating $OutTitle3 report" -PercentComplete (90)
-	$LPQuery.ExecuteBatch($Query,$InputFormat,$OutputFormat)| Out-Null
-#--
-	[System.Runtime.Interopservices.Marshal]::ReleaseComObject($LPQuery) | Out-Null
-	[System.Runtime.Interopservices.Marshal]::ReleaseComObject($InputFormat) | Out-Null
-	[System.Runtime.Interopservices.Marshal]::ReleaseComObject($OutputFormat) | Out-Null
+	$null = $LPQuery.ExecuteBatch($Query,$InputFormat,$OutputFormat)
+	$null = [System.Runtime.Interopservices.Marshal]::ReleaseComObject($LPQuery) 
+	$null = [System.Runtime.Interopservices.Marshal]::ReleaseComObject($InputFormat) 
+	$null = [System.Runtime.Interopservices.Marshal]::ReleaseComObject($OutputFormat) 
 #---------Find logs's time range Info----------
-	$OldestEvent = [datetime]('12/31/2699')
-	$NewestEvent = [datetime]('12/31/1999')
-	$LogFiles = Get-ChildItem -Path $ScriptPath -Filter '*.log'
-	foreach ($LogFile in $LogFiles) {
-		$FirstLine = (Get-Content $LogFile -Head 1) -split ' '
-		$LastLine  = (Get-Content $LogFile -Tail 1) -split ' '
-			$FirstLineTime = [datetime]::ParseExact($FirstLine[0]+' '+$FirstLine[1],"MM/dd HH:mm:ss",$Null)
-			$LastLineTime = [datetime]::ParseExact($LastLine[0]+' '+$LastLine[1],"MM/dd HH:mm:ss",$Null)
-		If ($OldestEvent -ge $FirstLineTime) {$OldestEvent = $FirstLineTime }
-		If ($NewestEvent -le $LastLineTime) {$NewestEvent = $LastLineTime }
-	}
-	$LogTimeRange = ($NewestEvent-$OldestEvent)
-	$LogRangeText = 'Items: '+$OldestEvent+' ~ '+$NewestEvent+'; TimeRange = '+$LogTimeRange.Days+' Days, '+$LogTimeRange.Hours+' Hours, '+$LogTimeRange.Minutes+' Minutes, '+$LogTimeRange.Seconds+' Seconds'  
+	$OldestTimeStamp = $NewestTimeStamp = $LogsInfo = $null
+	(Get-ChildItem -Path $ScriptPath -Filter '*.log').foreach({
+		$FirstLine = (Get-Content $_ -Head 1) -split ' '
+		$LastLine  = (Get-Content $_ -Tail 1) -split ' '
+			$FirstTimeStamp = [datetime]::ParseExact($FirstLine[0]+' '+$FirstLine[1],"MM/dd HH:mm:ss",$Null)
+			$LastTimeStamp = [datetime]::ParseExact($LastLine[0]+' '+$LastLine[1],"MM/dd HH:mm:ss",$Null)
+			if ($OldestTimeStamp -eq $null) { $OldestTimeStamp = $NewestTimeStamp = $FirstTimeStamp }
+			If ($OldestTimeStamp -gt $FirstTimeStamp) {$OldestTimeStamp = $FirstTimeStamp }
+			If ($NewestTimeStamp -lt $LastTimeStamp) {$NewestTimeStamp = $LastTimeStamp }
+		$LogsInfo = $LogsInfo + ($_.name+"`n   "+$FirstTimeStamp+' ~ '+$LastTimeStamp+"`t   Log range = "+($LastTimeStamp-$FirstTimeStamp).Totalseconds+" Seconds`n`n")
+	})
+		$LogTimeRange = ($NewestTimeStamp-$OldestTimeStamp)
+		$LogRangeText = ("Netlogon info:`n`n")
+		$LogRangeText += ("5E_NO_LOGON_SERVERS Ref: MaxConcurrentApi`n   https://support.microsoft.com/en-us/topic/how-to-do-performance-tuning-for-ntlm-authentication-by-using-the-maxconcurrentapi-setting-92228a96-6874-b52e-1e9f-4a9503ca4fda`n`n") 
+		$LogRangeText += ("(NULL) Ref: LsaLookupRestrictIsolatedNameLevel`n   https://support.microsoft.com/en-us/help/818024/how-to-restrict-the-lookup-of-isolated-names-to-external-trusted-domai`n`n") 
+		$LogRangeText += ("(NULL) Ref: NeverPing`n   https://support.microsoft.com/en-us/help/923241/the-lsass-exe-process-may-stop-responding-if-you-have-many-external-tr`n`n") 
+		$LogRangeText += ("#-------------------------------`n  [Overall EventRange]: "+$OldestTimeStamp+' ~ '+$NewestTimeStamp+"`n  [Overall TimeRange]: "+$LogTimeRange.Days+' Days '+$LogTimeRange.Hours+' Hours '+$LogTimeRange.Minutes+' Minutes '+$LogTimeRange.Seconds+" Seconds `n`n") + $LogsInfo 
 #---------Excel--------------------------------
 	If (Test-Path $OutFile1) { # Check if LogParser generated CSV.
 		$Excel = New-Object -ComObject excel.application  # https://docs.microsoft.com/en-us/office/vba/api/overview/excel/object-model
+		Write-Progress -Activity "Generating Excel worksheets" -PercentComplete (95)
+		# $Excel.visible = $true
+				$Excel.Workbooks.OpenText($OutFile1)
+					Invoke-WorkbookTasks -WorkBook 1 -TotalColumn 4 -SheetTitle $OutTitle1 -LogsInfoText $LogRangeText
+				$null = $Excel.Workbooks.Open($OutFile2) 	
+					Invoke-WorkbookTasks -WorkBook 2 -TotalColumn 3 -SheetTitle $OutTitle2 -LogsInfoText $LogRangeText
+				$null = $Excel.Workbooks.Open($OutFile3) 	
+					Invoke-WorkbookTasks -WorkBook 3 -TotalColumn 3 -SheetTitle $OutTitle3 -LogsInfoText $LogRangeText
 		$Excel.visible = $true
-		#--SamLogon-Machine
-			$Excel.Workbooks.OpenText("$OutFile1")
-			CommonWorkBookTasks([int]1,[int]4,$OutTitle1,$LogRangeText) # 1-WorkBook 2-NumberColumnFormat 3-SheetTitle 4-RangeText
-		#--SamLogon-Domain
-			$Excel.Workbooks.Open($OutFile2) | Out-Null	
-			CommonWorkBookTasks([int]2,[int]3,$OutTitle2,$LogRangeText)
-		#--SamLogon-User
-			$Excel.Workbooks.Open($OutFile3) | Out-Null	
-			CommonWorkBookTasks([int]3,[int]3,$OutTitle3,$LogRangeText)
-
-			[System.Runtime.Interopservices.Marshal]::ReleaseComObject($Excel) | Out-Null
+			$null = [System.Runtime.Interopservices.Marshal]::ReleaseComObject($Excel) 
 			# Stop-process -Name Excel 
 		} else {
 			Write-Host 'No LogParser result found. Please verify log type is Netlogon.log.' -ForegroundColor Red
