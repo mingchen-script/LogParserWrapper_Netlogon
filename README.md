@@ -10,7 +10,7 @@ Convert netlogon logs to Excel for more insight
 	#		4. No need to delete Netlogon.* since OS will still log esseitanl netlogon info.
 	#		5. More info https://docs.microsoft.com/en-us/troubleshoot/windows-client/windows-security/enable-debug-logging-netlogon-service
 	#
-	# LogParserWrapper_Netlogon.ps1 v0.6 11/2
+	# LogParserWrapper_Netlogon.ps1 v0.8 11/14 (added Chart)
 	# 	Steps:
 	#   	1. Install LogParser 2.2 from https://www.microsoft.com/en-us/download/details.aspx?id=24659
 	#    			Note: More about LogParser2.2 https://docs.microsoft.com/en-us/previous-versions/windows/it-pro/windows-xp/bb878032(v=technet.10)?redirectedfrom=MSDN
