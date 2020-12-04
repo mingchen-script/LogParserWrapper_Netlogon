@@ -13,8 +13,7 @@
 	#   	1. Install LogParser 2.2 from https://www.microsoft.com/en-us/download/details.aspx?id=24659
 	#    			Info on LogParser2.2 https://docs.microsoft.com/en-us/previous-versions/windows/it-pro/windows-xp/bb878032(v=technet.10)
 	#   	2. Copy Netlogon.log & Netlogon.bak from traget's %windir%\debug directory to same directory as this script.
-	#     		Note1: Script will rename Netlogon.bak to Netlogon_bak.log.
-	#					Note2: Script will process all *.log(s) in script directory when run.
+	#					Note: Script will process all *.log & *.bak in script directory when run.
 	#   	3. Run script (right click script, 'run with powershell')
 	# 
 function Invoke-WorkbookTasks { [CmdletBinding()] param ( 
