@@ -8,7 +8,7 @@
 	#		4. No need to delete Netlogon.* since OS continues log essential netlogon info.
 	#		5. More info https://docs.microsoft.com/en-us/troubleshoot/windows-client/windows-security/enable-debug-logging-netlogon-service
 	#
-	# LogParserWrapper_Netlogon.ps1 v0.8 11/14 (added Chart)
+	# LogParserWrapper_Netlogon.ps1 v0.9 12/4 (skipped rename, keeping netlogon untouch)
 	# 	Steps:
 	#   	1. Install LogParser 2.2 from https://www.microsoft.com/en-us/download/details.aspx?id=24659
 	#    			Info on LogParser2.2 https://docs.microsoft.com/en-us/previous-versions/windows/it-pro/windows-xp/bb878032(v=technet.10)
@@ -44,8 +44,8 @@ function Invoke-WorkbookTasks { [CmdletBinding()] param (
 }
 #------Main---------------------------------
 	$ScriptPath = Split-Path ((Get-Variable MyInvocation -Scope 0).Value).MyCommand.Path
-	$null = Get-ChildItem -Path $ScriptDirectory -Filter '*.bak' | Rename-Item -NewName {$_.name -replace '\.bak$', "_bak.log"} -ErrorAction Stop 
-		$InFiles = "$ScriptPath\*.log"
+	# $null = Get-ChildItem -Path $ScriptDirectory -Filter '*.bak' | Rename-Item -NewName {$_.name -replace '\.bak$', "_bak.log"} -ErrorAction Stop 
+		$InFiles = $ScriptPath+'\*.log, '+$ScriptPath+'\*.bak'
 		$InputFormat = New-Object -ComObject MSUtil.LogQuery.TextLineInputFormat
 		$TimeStamp = "{0:yyyy-MM-dd_hh-mm-ss_tt}" -f (Get-Date)
 		$LPQuery = New-Object -ComObject MSUtil.LogQuery
@@ -74,7 +74,7 @@ function Invoke-WorkbookTasks { [CmdletBinding()] param (
 		GROUP BY 
 			Status, User, MachineName ORDER BY Total DESC
 "@
-	Write-Progress -Activity "Generating $OutTitle1 report" -PercentComplete (30)
+	Write-Progress -Activity "Generating $OutTitle1 CSV using Log Parser.." -PercentComplete (30)
 	$null = $LPQuery.ExecuteBatch($Query,$InputFormat,$OutputFormat)
 #--SamLogon-Domain_
 	$OutTitle2 = 'SAM-Logon-Domain'
@@ -99,7 +99,7 @@ function Invoke-WorkbookTasks { [CmdletBinding()] param (
 		GROUP BY 
 			Domain,Status ORDER BY Total DESC
 "@
-	Write-Progress -Activity "Generating $OutTitle2 report" -PercentComplete (60)
+	Write-Progress -Activity "Generating $OutTitle2 CSV using Log Parser.." -PercentComplete (60)
 	$null = $LPQuery.ExecuteBatch($Query,$InputFormat,$OutputFormat)
 #--SamLogon-User_
 	$OutTitle3 = 'SAM-Logon-User'
@@ -124,14 +124,14 @@ function Invoke-WorkbookTasks { [CmdletBinding()] param (
 		GROUP BY 
 			Status, User ORDER BY Total DESC
 "@
-	Write-Progress -Activity "Generating $OutTitle3 report" -PercentComplete (90)
+	Write-Progress -Activity "Generating $OutTitle3 CSV using Log Parser.." -PercentComplete (90)
 	$null = $LPQuery.ExecuteBatch($Query,$InputFormat,$OutputFormat)
 	$null = [System.Runtime.Interopservices.Marshal]::ReleaseComObject($LPQuery) 
 	$null = [System.Runtime.Interopservices.Marshal]::ReleaseComObject($InputFormat) 
 	$null = [System.Runtime.Interopservices.Marshal]::ReleaseComObject($OutputFormat) 
 #---------Find logs's time range Info----------
 	$OldestTimeStamp = $NewestTimeStamp = $LogsInfo = $null
-	(Get-ChildItem -Path $ScriptPath -Filter '*.log').foreach({
+	(Get-ChildItem -Path $ScriptPath\* -include ('*.log', '*.bak') ).foreach({
 		$FirstLine = (Get-Content $_ -Head 1) -split ' '
 		$LastLine  = (Get-Content $_ -Tail 1) -split ' '
 			$FirstTimeStamp = [datetime]::ParseExact($FirstLine[0]+' '+$FirstLine[1],"MM/dd HH:mm:ss",$Null)
