@@ -8,7 +8,7 @@
 	#		4. No need to delete Netlogon.* since OS continues log essential netlogon info.
 	#		5. More info https://docs.microsoft.com/en-us/troubleshoot/windows-client/windows-security/enable-debug-logging-netlogon-service
 	#
-	# LogParserWrapper_Netlogon.ps1 v0.9 12/4 (skipped rename, keeping netlogon untouch)
+	# LogParserWrapper_Netlogon.ps1 v0.91 8/19 (skipped rename, keeping netlogon untouch, added c000005e check in Note)
 	# 	Steps:
 	#   	1. Install LogParser 2.2 from https://www.microsoft.com/en-us/download/details.aspx?id=24659
 	#    			Info on LogParser2.2 https://docs.microsoft.com/en-us/previous-versions/windows/it-pro/windows-xp/bb878032(v=technet.10)
@@ -131,6 +131,7 @@ function Invoke-WorkbookTasks { [CmdletBinding()] param (
 #---------Find logs's time range Info----------
 	$OldestTimeStamp = $NewestTimeStamp = $LogsInfo = $null
 	(Get-ChildItem -Path $ScriptPath\* -include ('*.log', '*.bak') ).foreach({
+		$null = $Err_5E
 		$FirstLine = (Get-Content $_ -Head 1) -split ' '
 		$LastLine  = (Get-Content $_ -Tail 1) -split ' '
 			$FirstTimeStamp = [datetime]::ParseExact($FirstLine[0]+' '+$FirstLine[1],"MM/dd HH:mm:ss",$Null)
@@ -139,6 +140,8 @@ function Invoke-WorkbookTasks { [CmdletBinding()] param (
 			If ($OldestTimeStamp -gt $FirstTimeStamp) {$OldestTimeStamp = $FirstTimeStamp }
 			If ($NewestTimeStamp -lt $LastTimeStamp) {$NewestTimeStamp = $LastTimeStamp }
 		$LogsInfo = $LogsInfo + ($_.name+"`n   "+$FirstTimeStamp+' ~ '+$LastTimeStamp+"`t   Log range = "+($LastTimeStamp-$FirstTimeStamp).Totalseconds+" Seconds`n`n")
+			$Err_5E = Get-Content $_ | Where-Object {($_ -like '*C000005E*') -or ($_ -like '*NlFinishApiClientSession: dropping the session to*')}
+			if ($null -ne $Err_5E) {$LogsInfo = $LogsInfo + "   <!! ERROR !! > " + $Err_5E + "`n`n"}
 	})
 		$LogTimeRange = ($NewestTimeStamp-$OldestTimeStamp)
 		$LogRangeText = ("Netlogon info:`n`n")
